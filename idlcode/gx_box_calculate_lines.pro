@@ -2,23 +2,10 @@
 ; IDL Wrapper to external call to claculate magnetic fields line properties
 ;   using Weighted Wiegelmann NLFF Field Reconstruction library
 ;   
-; v 3.4.23.1203 (rev.797)
-; min WWWNLFFFReconstruction version: v 2.3.21.217 (rev.392)
+; v 4.4.26.601 (rev.61)
+; min WWWNLFFFReconstruction version: v 4.4.26.601 (rev.61)
 ; 
-; Call (see parameters and comments below):
-; non_stored = gx_box_calculate_lines( $
-;                          lib_location, box $ ; Required
-;                        , inputSeeds = <array>, maxLength = <number> $ ; Optional input
-;                        , reduce_passed = <number>, n_processes = <number>, chromo_level = <number>, line_step = <number> $ ; Optional input  
-;                        , inputSeeds = <array>, maxLength = <number> $ ; Optional input
-;                        , reduce_passed = <number>, n_processes = <number>, chromo_level = <number>, line_step = <number> $ ; Optional input  
-;                        , status = status, physLength = physLength, avField = avField $ ; Optional output
-;                        , startIdx = startIdx, endIdx = endIdx, apexIdx = apexIdx, seedIdx = seedIdx $ ; Optional output
-;                        , totalLength = totalLength, nLines = nLines, nPassed = nPassed $ ; Optional output
-;                        , coords = coords, linesPos = linesPos, linesLength = linesLength, linesIndex = linesIndex $ ; Optional output
-;                        , codes = codes $ ; Optional output
-;                        , version_info = version_info ; Optional output
-;                                    )
+; Call: see parameters and comments below
 ; 
 ; Parameters description (see also section Comments below):
 ; 
@@ -35,7 +22,14 @@
 ;                                           are considered as seeds (for coordinates [0, 0, 0], [1, 0, 0] etc.)     
 ;   (in)      maxLength      (integer)      maximum number of stored points for all calculated lines 
 ;                                           (can be uint64). If not set or eq 0, no coords, linesPos, linesLength, 
-;                                           linesIndex will be stored 
+;                                           linesIndex will be stored
+;                                           
+;   (in)      lines_tolerance             (double)       TBD (default = 1e-4) 
+;   (in)      lines_abs_bound_achieve     (double)       TBD (default = 1e-3)
+;   (in)      lines_rel_bound_achieve     (double)       TBD (default = 0, could be equal to 'weight_bound_size' parameter of 'gx_box_make_nlfff_wwas_field' call)
+;   (in)      lines_rel_seeds_bound       (double)       TBD (default = 0, could be equal to 'weight_bound_size' parameter of 'gx_box_make_nlfff_wwas_field' call)
+;   (in)      lines_n_loop_control        (integer)      TBD (default = 200)
+;   (in)      lines_loop_abs_cell         (double)       TBD (default = 1.5)
 ;   
 ; Parameters optional (out):
 ;   (for arrays indexing see Comments below)
@@ -59,7 +53,8 @@
 ;   (out)     linesLength     (nLines lonarr)           line length (number of points) in "coords" array
 ;   (out)     linesIndex      (nLines lonarr)           index of line in common arrays (such as "avField" etc.)
 ;   
-;   (out)     codes           (N lonarr)    codes of calculation process (not specified here yet, mainly for debugging) 
+;   (out)     codes           (N lonarr)                codes of calculation process (TBD, mainly for debugging) 
+;   (out)     times           (nLines lonarr)           TBD, mainly for debugging 
 ;                        
 ;   (out)     version_info    (string)      WWNLFFFReconstruction.dll library version information
 ;
@@ -99,7 +94,7 @@
 ;    
 ;   Note, that wrapping library also provides interfaces for C/C++, Python, and MATLAB
 ;   
-; (c) Alexey G. Stupishin, Saint Petersburg State University, Saint Petersburg, Russia, 2017-2023
+; (c) Alexey G. Stupishin, Special Astrophysical Observatory, Russia, 2017-2026
 ;     mailto:agstup@yandex.ru
 ;
 ;--------------------------------------------------------------------------;
@@ -158,12 +153,14 @@ function gx_box_calculate_lines $
     , totalLength = totalLength, nLines = nLines, nPassed = nPassed $ ; Optional output
     , coords = coords, linesPos = linesPos, linesLength = linesLength, linesIndex = linesIndex $ ; Optional output
     , codes = codes $ ; Optional output
+    , times = times $ ; Optional output
+    , calctime = calctime $ ; Optional output
     , version_info = version_info ; Optional output
 
     version_info = gx_box_field_library_version(lib_location)
 ;    print, version_info
   
-    value = bytarr(23)
+    value = bytarr(24)
   
     Nseeds = lonarr(1) 
     if keyword_set(inputSeeds) and not isa(inputSeeds, /NULL) then begin
@@ -192,6 +189,7 @@ function gx_box_calculate_lines $
     if arg_present(seedIdx)     then vseedIdx     = lonarr(NVox) else gxl_setNULL, vseedIdx,     value, 11
     
     if arg_present(codes)       then vcodes       = lonarr(NVox) else gxl_setNULL, vcodes,       value, 22 
+    if arg_present(times)       then vtimes       = dblarr(NVox) else gxl_setNULL, vtimes,       value, 23
      
     vmaxLength = ulon64arr(1)
     if keyword_set(maxLength) then vmaxLength[0] = maxLength
@@ -203,7 +201,7 @@ function gx_box_calculate_lines $
     vm = vmaxLength[0]
     use_coords = vm gt 0 and arg_present(coords) 
     
-    if use_coords then                              vcoords      = dblarr(4*vm)    else gxl_setNULL, vcoords,      value, 18 
+    if use_coords                              then vcoords      = dblarr(4*vm)    else gxl_setNULL, vcoords,      value, 18 
     if use_coords and arg_present(linesPos)    then vlinesPos    = ulon64arr(NVox) else gxl_setNULL, vlinesPos,    value, 19
     if use_coords and arg_present(linesLength) then vlinesLength = lonarr(NVox)    else gxl_setNULL, vlinesLength, value, 20 
     if use_coords and arg_present(linesIndex)  then vlinesIndex  = lonarr(NVox)    else gxl_setNULL, vlinesIndex,  value, 21 
@@ -216,12 +214,12 @@ function gx_box_calculate_lines $
         for i = 0, n-1 do begin
             if strcmp(keys[i], 'reduce_passed') then begin
                 reduce_passed = _extra.(i)
-            endif else begin    
-                if strcmp(keys[i], 'line_step') then begin
-                    parameterMap[nParameters].itemName = 'step'
-                endif else begin
-                    parameterMap[nParameters].itemName = keys[i]
-                endelse
+            endif else begin
+                case keys[i] of
+                    'line_step': parameterMap[nParameters].itemName = 'lines_step'
+                    'chromo_level': parameterMap[nParameters].itemName = 'lines_chromo_level'
+                    else: parameterMap[nParameters].itemName = keys[i]
+                endcase
                      
                 if strcmp(keys[i], 'chromo_level') then begin
                     parameterMap[nParameters].itemValue = double(_extra.(i))/wcs_rsun()/box.dr[2] *1000
@@ -232,7 +230,7 @@ function gx_box_calculate_lines $
             endelse    
          endfor
     endif
-    parameterMap[nParameters].itemName = 'reduce_passed'
+    parameterMap[nParameters].itemName = 'lines_conditions'
     parameterMap[nParameters].itemValue = reduce_passed
     nParameters = nParameters + 1
     parameterMap[nParameters].itemName = '!____idl_map_terminator_key___!';
@@ -243,14 +241,17 @@ function gx_box_calculate_lines $
     sz = size(bx)
     s3D = sz[1:3]
   
+    t0 = systime(/seconds)
     non_stored = CALL_EXTERNAL(lib_location, 'mfoLines', parameterMap $                 ; 0
                           , s3D, bx, by, bz $                                           ; 1-4
                           , vstatus, vphysLength, vavField $                            ; 5-7
                           , vstartIdx, vendIdx, vapexIdx, vseedIdx $                    ; 8-11
                           , vseeds, Nseeds $                                            ; 12-13                                                    
                           , vmaxLength, vtotalLength, vnLines, vnPassed $               ; 14-17
-                          , vcoords, vlinesPos, vlinesLength, vlinesIndex, vcodes $     ; 18-22
+                          , vcoords, vlinesPos, vlinesLength, vlinesIndex $             ; 18-21
+                          , vcodes, vtimes $                                            ; 22-23
                           , VALUE = value, /CDECL, /UNLOAD)
+    calctime = systime(/seconds) - t0
 
     isTransp = not isa(vseeds, /ARRAY)
     if arg_present(nPassed)    then nPassed    = vnPassed[0]
@@ -264,6 +265,7 @@ function gx_box_calculate_lines $
     if arg_present(seedIdx)    then seedIdx    = gxl_transpIdx(gxl_inverteIndexArr(vseedIdx, s3D), s3D, isTransp)
     
     if arg_present(codes)      then codes      = gxl_transpIdx(vcodes, s3D, isTransp)
+    if arg_present(times)      then times      = gxl_transpIdx(vtimes, s3D, isTransp)
     
     if arg_present(totalLength)  then totalLength = vtotalLength[0]
     

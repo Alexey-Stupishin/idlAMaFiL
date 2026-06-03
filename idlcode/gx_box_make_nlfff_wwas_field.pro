@@ -1,10 +1,11 @@
 ;
 ; IDL Wrapper to external call of Weighted Wiegelmann NLFF Field Reconstruction Method library
-; v 2.3.21.217 (rev.392)
-; min WWWNLFFFReconstruction version: v 2.3.21.217 (rev.392)
+
+; v 4.4.26.601 (rev.61)
+; min WWWNLFFFReconstruction version: v 4.4.26.601 (rev.61)
 ; 
 ; Call:
-; rc = gx_box_make_nlfff_wwas_field(lib_location, box, _extra = _extra)
+; rc = gx_box_make_nlfff_wwas_field(lib_location, box, version_info = version_info, _extra = _extra)
 ; 
 ; Parameters description (see also section Comments below):
 ; 
@@ -24,7 +25,7 @@
 ; 
 ;   Note, that wrapping library also provides interfaces for C/C++, Python, and MATLAB
 ;   
-; (c) Alexey G. Stupishin, Saint Petersburg State University, Saint Petersburg, Russia, 2017-2022
+; (c) Alexey G. Stupishin, Special Astrophysical Observatory, Russia, 2017-2026
 ;     mailto:agstup@yandex.ru
 ;
 ;

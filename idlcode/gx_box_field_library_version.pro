@@ -21,7 +21,7 @@
 ;    
 ;   Note, that wrapping library also provides interfaces for C/C++, Python, and MATLAB
 ;   
-; (c) Alexey G. Stupishin, Saint Petersburg State University, Saint Petersburg, Russia, 2017-2023
+; (c) Alexey G. Stupishin, Special Astrophysical Observatory, Russia, 2017-2026
 ;     mailto:agstup@yandex.ru
 ;
 ;--------------------------------------------------------------------------;
