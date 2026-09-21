@@ -2,7 +2,7 @@
 ; IDL Wrapper to external call to get version of
 ;   Weighted Wiegelmann NLFF Field Reconstruction library
 ;   
-; v 3.4.23.1202 (rev.796)
+; v 4.6.26.921 (rev.81)
 ; min WWWNLFFFReconstruction version: v 3.4.22.1025 (rev.626)
 ; 
 ; Call (see parameters and comments below):

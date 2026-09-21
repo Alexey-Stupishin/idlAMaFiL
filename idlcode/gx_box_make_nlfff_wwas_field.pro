@@ -1,8 +1,8 @@
 ;
 ; IDL Wrapper to external call of Weighted Wiegelmann NLFF Field Reconstruction Method library
 
-; v 4.4.26.601 (rev.61)
-; min WWWNLFFFReconstruction version: v 4.4.26.601 (rev.61)
+; v 4.6.26.921 (rev.81)
+; min WWWNLFFFReconstruction version: v 4.6.26.921 (rev.81)
 ; 
 ; Call:
 ; rc = gx_box_make_nlfff_wwas_field(lib_location, box, version_info = version_info, _extra = _extra)
@@ -67,7 +67,7 @@ function gx_box_make_nlfff_wwas_field, lib_location, box, version_info = version
   value[5:25] = 1 
   
   n = n_tags(_extra)
-  parameterMap = replicate({itemName:'',itemvalue:0d},n+1)
+  parameterMap = replicate({itemName:'',itemvalue:0d},n+2)
   nParameters = 0;
   if n gt 0 then begin
     keys = strlowcase(tag_names(_extra))
@@ -169,8 +169,12 @@ function gx_box_make_nlfff_wwas_field, lib_location, box, version_info = version
       endcase
     endfor
   endif
-  parameterMap[nParameters].itemName = '!____idl_map_terminator_key___!';
-
+  
+  parameterMap[nParameters].itemName = 'ignore_extra_parameters';
+  parameterMap[nParameters].itemValue = 1;
+  
+  parameterMap[nParameters+1].itemName = '!____idl_map_terminator_key___!';
+  
   bx = double(transpose(box.by, [1, 0, 2]))
   by = double(transpose(box.bx, [1, 0, 2]))
   bz = double(transpose(box.bz, [1, 0, 2]))

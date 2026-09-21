@@ -2,8 +2,8 @@
 ; IDL Wrapper to external call to claculate magnetic fields line properties
 ;   using Weighted Wiegelmann NLFF Field Reconstruction library
 ;   
-; v 4.4.26.601 (rev.61)
-; min WWWNLFFFReconstruction version: v 4.4.26.601 (rev.61)
+; v 4.6.26.921 (rev.81)
+; min WWWNLFFFReconstruction version: v 4.6.26.921 (rev.81)
 ; 
 ; Call: see parameters and comments below
 ; 
@@ -53,9 +53,6 @@
 ;   (out)     linesLength     (nLines lonarr)           line length (number of points) in "coords" array
 ;   (out)     linesIndex      (nLines lonarr)           index of line in common arrays (such as "avField" etc.)
 ;   
-;   (out)     codes           (N lonarr)                codes of calculation process (TBD, mainly for debugging) 
-;   (out)     times           (nLines lonarr)           TBD, mainly for debugging 
-;                        
 ;   (out)     version_info    (string)      WWNLFFFReconstruction.dll library version information
 ;
 ; Comments:
@@ -90,7 +87,9 @@
 ;     4 - set if exactly one end of the line are opened (since library version 3.4.23.1203 (rev.797))
 ;
 ;   Return value:
-;     Normally 0. If not all lines are stored, returns the number of non-stored lines
+;     Normally 0. 
+;     Number of non-stored lines, if not all lines are stored.
+;     Negative, if some error occurs (TBD).
 ;    
 ;   Note, that wrapping library also provides interfaces for C/C++, Python, and MATLAB
 ;   
@@ -110,40 +109,6 @@ pro gxl_setNULL, var, value, n
 end
 
 ;------------------------------------------------------------------------------------------
-function gxl_inverteIndex, index, sizes ; index and sizes in AGS CS
-    
-    kx =  index mod sizes[0]
-    kyz = index / sizes[0]
-    ky = kyz mod sizes[1]
-    kz = kyz / sizes[1]
-
-    return, (kz*sizes[0] + kx)*sizes[1] + ky
-    
-end
-
-;------------------------------------------------------------------------------------------
-function gxl_inverteIndexArr, data, sizes ; index and sizes in AGS CS
-
-    tdata = make_array(n_elements(data), type = size(data, /TYPE))
-    for i = 0, n_elements(data)-1 do tdata[i] = gxl_inverteIndex(data[i], sizes)
-    
-    return, tdata
-    
-end
-
-;------------------------------------------------------------------------------------------
-function gxl_transpIdx, data, sizes, isTransp ; sizes in AGS CS
-    
-    if not isTransp then return, data
-    
-    tdata = make_array(n_elements(data), type = size(data, /TYPE))
-    for i = 0, n_elements(data)-1 do tdata[gxl_inverteIndex(i, sizes)] = data[i]
-
-    return, tdata
-    
-end
-
-;------------------------------------------------------------------------------------------
 function gx_box_calculate_lines $
     , lib_location, box $ ; Required
     , inputSeeds = inputSeeds, maxLength = maxLength $ ; Optional input
@@ -152,10 +117,13 @@ function gx_box_calculate_lines $
     , startIdx = startIdx, endIdx = endIdx, apexIdx = apexIdx, seedIdx = seedIdx $ ; Optional output
     , totalLength = totalLength, nLines = nLines, nPassed = nPassed $ ; Optional output
     , coords = coords, linesPos = linesPos, linesLength = linesLength, linesIndex = linesIndex $ ; Optional output
+    , version_info = version_info $ ; Optional output
+;   internal use:     
+    , internal_convert = internal_convert $ Optional input
+    , lines_use_durstenfeld = lines_use_durstenfeld $ Optional input
     , codes = codes $ ; Optional output
     , times = times $ ; Optional output
-    , calctime = calctime $ ; Optional output
-    , version_info = version_info ; Optional output
+    , calctime = calctime ; Optional output
 
     version_info = gx_box_field_library_version(lib_location)
 ;    print, version_info
@@ -205,34 +173,41 @@ function gx_box_calculate_lines $
     if use_coords and arg_present(linesPos)    then vlinesPos    = ulon64arr(NVox) else gxl_setNULL, vlinesPos,    value, 19
     if use_coords and arg_present(linesLength) then vlinesLength = lonarr(NVox)    else gxl_setNULL, vlinesLength, value, 20 
     if use_coords and arg_present(linesIndex)  then vlinesIndex  = lonarr(NVox)    else gxl_setNULL, vlinesIndex,  value, 21 
-     
+    
+    internal_convert = 1
     n = n_tags(_extra)
-    parameterMap = replicate({itemName:'',itemvalue:0d},n+2)
+    parameterMap = replicate({itemName:'',itemvalue:0d},n+4)
     nParameters = 0;
     if n gt 0 then begin
         keys = strlowcase(tag_names(_extra))
         for i = 0, n-1 do begin
-            if strcmp(keys[i], 'reduce_passed') then begin
-                reduce_passed = _extra.(i)
+            if keys[i] eq 'internal_convert' then internal_convert = _extra.(i) & continue 
+            if keys[i] eq 'reduce_passed' then reduce_passed = _extra.(i) & continue
+            case keys[i] of
+                'line_step': parameterMap[nParameters].itemName = 'lines_step'
+                'chromo_level': parameterMap[nParameters].itemName = 'lines_chromo_level'
+                else: parameterMap[nParameters].itemName = keys[i]
+            endcase
+                 
+            if strcmp(keys[i], 'chromo_level') then begin
+                parameterMap[nParameters].itemValue = double(_extra.(i))/wcs_rsun()/box.dr[2] *1000
             endif else begin
-                case keys[i] of
-                    'line_step': parameterMap[nParameters].itemName = 'lines_step'
-                    'chromo_level': parameterMap[nParameters].itemName = 'lines_chromo_level'
-                    else: parameterMap[nParameters].itemName = keys[i]
-                endcase
-                     
-                if strcmp(keys[i], 'chromo_level') then begin
-                    parameterMap[nParameters].itemValue = double(_extra.(i))/wcs_rsun()/box.dr[2] *1000
-                endif else begin
-                    parameterMap[nParameters].itemValue = _extra.(i)
-                endelse     
-                nParameters = nParameters + 1
-            endelse    
+                parameterMap[nParameters].itemValue = _extra.(i)
+            endelse
+            
+            nParameters++
          endfor
     endif
     parameterMap[nParameters].itemName = 'lines_conditions'
     parameterMap[nParameters].itemValue = reduce_passed
-    nParameters = nParameters + 1
+    nParameters++
+    parameterMap[nParameters].itemName = 'lines_internal_convert_indices'
+    parameterMap[nParameters].itemValue = internal_convert
+    nParameters++
+    parameterMap[nParameters].itemName = 'ignore_extra_parameters';
+    parameterMap[nParameters].itemValue = 1;
+    nParameters++
+
     parameterMap[nParameters].itemName = '!____idl_map_terminator_key___!';
 
     bx = double(transpose(box.by, [1, 0, 2]))
@@ -253,20 +228,20 @@ function gx_box_calculate_lines $
                           , VALUE = value, /CDECL, /UNLOAD)
     calctime = systime(/seconds) - t0
 
-    isTransp = not isa(vseeds, /ARRAY)
     if arg_present(nPassed)    then nPassed    = vnPassed[0]
-    if arg_present(status)     then status     = gxl_transpIdx(vstatus, s3D, isTransp)
-    if arg_present(physLength) then physLength = gxl_transpIdx(vphysLength, s3D, isTransp)*box.dr[0]
-    if arg_present(avField)    then avField    = gxl_transpIdx(vavField, s3D, isTransp)
+    
+    if arg_present(status)     then status     = vstatus
+    if arg_present(physLength) then physLength = vphysLength*box.dr[0]
+    if arg_present(avField)    then avField    = vavField
 
-    if arg_present(startIdx)   then startIdx   = gxl_transpIdx(gxl_inverteIndexArr(vstartIdx, s3D), s3D, isTransp)
-    if arg_present(endIdx)     then endIdx     = gxl_transpIdx(gxl_inverteIndexArr(vendIdx, s3D), s3D, isTransp)
-    if arg_present(apexIdx)    then apexIdx    = gxl_transpIdx(gxl_inverteIndexArr(vapexIdx, s3D), s3D, isTransp)
-    if arg_present(seedIdx)    then seedIdx    = gxl_transpIdx(gxl_inverteIndexArr(vseedIdx, s3D), s3D, isTransp)
-    
-    if arg_present(codes)      then codes      = gxl_transpIdx(vcodes, s3D, isTransp)
-    if arg_present(times)      then times      = gxl_transpIdx(vtimes, s3D, isTransp)
-    
+    if arg_present(startIdx)   then startIdx   = vstartIdx
+    if arg_present(endIdx)     then endIdx     = vendIdx
+    if arg_present(apexIdx)    then apexIdx    = vapexIdx
+    if arg_present(seedIdx)    then seedIdx    = vseedIdx
+
+    if arg_present(codes)      then codes      = vcodes
+    if arg_present(times)      then times      = vtimes
+        
     if arg_present(totalLength)  then totalLength = vtotalLength[0]
     
     iscoords = isa(vcoords, /ARRAY) and vtotalLength[0] gt 0
