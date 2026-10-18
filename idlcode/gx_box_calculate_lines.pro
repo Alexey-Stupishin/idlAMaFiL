@@ -2,7 +2,7 @@
 ; IDL Wrapper to external call to claculate magnetic fields line properties
 ;   using Weighted Wiegelmann NLFF Field Reconstruction library
 ;   
-; v 4.6.26.921 (rev.81)
+; v 4.6.26.1018 (rev.57)
 ; min WWWNLFFFReconstruction version: v 4.6.26.921 (rev.81)
 ; 
 ; Call: see parameters and comments below
@@ -181,8 +181,16 @@ function gx_box_calculate_lines $
     if n gt 0 then begin
         keys = strlowcase(tag_names(_extra))
         for i = 0, n-1 do begin
-            if keys[i] eq 'internal_convert' then internal_convert = _extra.(i) & continue 
-            if keys[i] eq 'reduce_passed' then reduce_passed = _extra.(i) & continue
+            if keys[i] eq 'internal_convert' then begin
+                internal_convert = _extra.(i)
+                continue
+            endif
+            
+            if keys[i] eq 'reduce_passed' then begin
+                reduce_passed = _extra.(i)
+                continue
+            endif
+            
             case keys[i] of
                 'line_step': parameterMap[nParameters].itemName = 'lines_step'
                 'chromo_level': parameterMap[nParameters].itemName = 'lines_chromo_level'
